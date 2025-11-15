@@ -18,7 +18,8 @@ namespace Input
 		{
 			_actions = new InputSystem_Actions();
 			_actions.Player.Jump.performed += OnJump;
-			_actions.Player.Move.performed += OnMove;
+			_actions.Player.Move.performed += OnMovePerformed;
+			_actions.Player.Move.canceled += OnMoveCanceled;
 			
 			G.InputService = this;
 		}
@@ -31,8 +32,11 @@ namespace Input
 			_horizontal = horizontal;
 		}
 		
-		private void OnMove(InputAction.CallbackContext context) => 
+		private void OnMovePerformed(InputAction.CallbackContext context) => 
 			CallHorizontal(context.ReadValue<Vector2>().x);
+
+		private void OnMoveCanceled(InputAction.CallbackContext obj) => 
+			CallHorizontal(0);
 
 		private void OnEnable()
 		{
