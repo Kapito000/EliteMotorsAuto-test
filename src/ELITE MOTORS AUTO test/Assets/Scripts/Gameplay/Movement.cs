@@ -114,9 +114,10 @@ namespace Gameplay
 
 		private Vector3 ApplyGravitation(Vector3 yVelocity)
 		{
-			if (!_inAir) return yVelocity;
+			if (_inAir)
+				yVelocity += -transform.up * (_gravityPower * Time.fixedDeltaTime);
 
-			return yVelocity += -transform.up * _gravityPower * Time.fixedDeltaTime;
+			return yVelocity;
 		}
 
 		private Vector3 ApplyJumpVelocity(Vector3 yVelocity)
