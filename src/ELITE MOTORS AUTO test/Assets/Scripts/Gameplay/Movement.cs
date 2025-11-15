@@ -20,6 +20,8 @@ namespace Gameplay
 		[SerializeField] private bool _inAir;
 		[SerializeField] private bool _isGrounded;
 
+		private RaycastHit2D[] _hits = new RaycastHit2D[8];
+
 		private float Horizontal => Input.Horizontal;
 		private IInputService Input => G.InputService;
 
@@ -35,38 +37,39 @@ namespace Gameplay
 
 		private void FixedUpdate()
 		{
-			_isGrounded = IsGrounded();
-			_inAir = !_isGrounded;
+			SetGroundState();
+			SetAirState();
 
-			var yVelocity = Vector3.Project(_rb.linearVelocity, transform.up);
-
-			if (!_inAir && _isJumping && _isGrounded)
-			{
-				yVelocity += transform.up * _jumpingPower;
-			}
-
-			if (_inAir)
-			{
-				yVelocity += -transform.up * _gravityPower * Time.fixedDeltaTime;
-			}
-
-			var xVelocity = transform.right * Horizontal * _speed;
+			var yVelocity = CalculateVerticalVelocity();
+			var xVelocity = CalculateLocalHorizontalVelocity();
 
 			_rb.linearVelocity = xVelocity + yVelocity;
 
-			// Rotate.
-			if (GroundNormal(out var normal))
+			ApplyRotation();
+
+			ResetJumpingState();
+		}
+
+		private Vector3 CalculateVerticalVelocity()
+		{
+			var yVelocity = LocalVerticalVelocity();
+			yVelocity = ApplyJumpVelocity(yVelocity);
+			yVelocity = ApplyGravitation(yVelocity);
+			return yVelocity;
+		}
+
+		private void ApplyRotation()
+		{
+			if (TryGetGroundNormal(out var normal))
 			{
 				Quaternion endRot = Quaternion.FromToRotation(transform.up, normal) * transform.rotation;
 				transform.rotation = Quaternion.Slerp(transform.rotation, endRot, Time.deltaTime * _rotateFactor);
 			}
-
-			_isJumping = false;
 		}
 
-		private bool GroundNormal(out Vector3 normal)
+		private bool TryGetGroundNormal(out Vector3 normal)
 		{
-			if (CastToCenter(out var hit) == false)
+			if (CastLineToCenter(out var hit) == false)
 			{
 				normal = default;
 				return false;
@@ -76,39 +79,29 @@ namespace Gameplay
 			return true;
 		}
 
-		private bool CastToCenter(out RaycastHit2D result)
+		private bool CastLineToCenter(out RaycastHit2D result)
 		{
-			var hits = Physics2D.LinecastAll(transform.position, _center.position, _groundLayer);
-			if (hits.Length == 0)
+			var count = Physics2D.LinecastNonAlloc(transform.position, _center.position, _hits, _groundLayer);
+			if (count == 0)
 			{
 				result = default;
 				return false;
 			}
 
-			result = hits[0];
+			result = _hits[0];
 			var distance = Vector2.Distance(result.point, _center.position);
-			foreach (var hit in hits)
+			for (var i = 0; i < count; i++)
 			{
-				var d = Vector2.Distance(hit.point, _center.position);
-				if (d < distance)
+				var hit = _hits[i];
+				var newDistance = Vector2.Distance(hit.point, _center.position);
+				if (newDistance < distance)
 				{
 					result = hit;
-					distance = distance;
+					distance = newDistance;
 				}
 			}
 
 			return true;
-		}
-
-		private bool IsGrounded()
-		{
-			return Physics2D.OverlapCircle(_groundCheck.position, _groundCheckRadius, _groundLayer);
-		}
-
-		void OnDrawGizmos()
-		{
-			Gizmos.color = _isGrounded ? Color.red : Color.blue;
-			Gizmos.DrawWireSphere(_groundCheck.position, _groundCheckRadius);
 		}
 
 		private void OnJump()
@@ -117,6 +110,44 @@ namespace Gameplay
 			{
 				_isJumping = true;
 			}
+		}
+
+		private Vector3 ApplyGravitation(Vector3 yVelocity)
+		{
+			if (!_inAir) return yVelocity;
+
+			return yVelocity += -transform.up * _gravityPower * Time.fixedDeltaTime;
+		}
+
+		private Vector3 ApplyJumpVelocity(Vector3 yVelocity)
+		{
+			if (!_inAir && _isJumping && _isGrounded)
+			{
+				yVelocity += transform.up * _jumpingPower;
+			}
+
+			return yVelocity;
+		}
+
+		private Vector3 CalculateLocalHorizontalVelocity() =>
+			transform.right * Horizontal * _speed;
+
+		private Vector3 LocalVerticalVelocity() =>
+			Vector3.Project(_rb.linearVelocity, transform.up);
+
+		private void ResetJumpingState() =>
+			_isJumping = false;
+
+		private void SetAirState() =>
+			_inAir = !_isGrounded;
+
+		private void SetGroundState() =>
+			_isGrounded = Physics2D.OverlapCircle(_groundCheck.position, _groundCheckRadius, _groundLayer);
+
+		private void OnDrawGizmos()
+		{
+			Gizmos.color = _isGrounded ? Color.red : Color.blue;
+			Gizmos.DrawWireSphere(_groundCheck.position, _groundCheckRadius);
 		}
 	}
 }
