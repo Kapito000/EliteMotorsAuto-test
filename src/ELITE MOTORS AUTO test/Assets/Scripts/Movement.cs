@@ -1,8 +1,9 @@
-using System.Collections;
 using UnityEngine;
 
 public sealed class Movement : MonoBehaviour
 {
+	const float _groundCheckRadius = 0.2f;
+
 	[SerializeField] private Rigidbody2D _rb;
 	[SerializeField] private Transform _center;
 	[SerializeField] private Transform _groundCheck;
@@ -14,6 +15,7 @@ public sealed class Movement : MonoBehaviour
 	[SerializeField] private float _rotateFactor = 1f;
 	[SerializeField] private bool _isJumping;
 	[SerializeField] private bool _inAir;
+	[SerializeField] private bool _isGrounded;
 
 	private float Horizontal => _controller.Horizontal;
 
@@ -29,15 +31,14 @@ public sealed class Movement : MonoBehaviour
 
 	private void FixedUpdate()
 	{
-		var isGrounded = IsGrounded();
-		_inAir = !isGrounded;
+		_isGrounded = IsGrounded();
+		_inAir = !_isGrounded;
 
 		var yVelocity = Vector3.Project(_rb.linearVelocity, transform.up);
 
-		if (!_inAir && _isJumping && isGrounded)
+		if (!_inAir && _isJumping && _isGrounded)
 		{
 			yVelocity += transform.up * _jumpingPower;
-			_isJumping = false;
 		}
 
 		if (_inAir)
@@ -55,6 +56,8 @@ public sealed class Movement : MonoBehaviour
 			Quaternion endRot = Quaternion.FromToRotation(transform.up, normal) * transform.rotation;
 			transform.rotation = Quaternion.Slerp(transform.rotation, endRot, Time.deltaTime * _rotateFactor);
 		}
+		
+		_isJumping = false;
 	}
 
 	private bool GroundNormal(out Vector3 normal)
@@ -95,8 +98,13 @@ public sealed class Movement : MonoBehaviour
 
 	private bool IsGrounded()
 	{
-		const float groundCheckRadius = 0.2f;
-		return Physics2D.OverlapCircle(_groundCheck.position, groundCheckRadius, _groundLayer);
+		return Physics2D.OverlapCircle(_groundCheck.position, _groundCheckRadius, _groundLayer);
+	}
+
+	void OnDrawGizmos()
+	{
+		Gizmos.color = _isGrounded ? Color.red : Color.blue;
+		Gizmos.DrawWireSphere(_groundCheck.position, _groundCheckRadius);
 	}
 
 	private void OnJump()
